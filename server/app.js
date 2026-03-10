@@ -128,11 +128,33 @@ async function start() {
         });
     });
 
-    app.get("/api/zmluvy", (req, res) => { });
+    app.get("/api/admin/prehlad", auth, async (req, res) => {
+        if (req.session.role !== "a" || req.session.role !== "ka"){
+            return res.status(403).json({ error: "Nedostatocne opravnenia" });
+        }
+        const [
+            [statistika],
+            [posledne_zmluvy],
+            [nezaplatene_zmluvy],
+            [otvorene_poistne_udalosti]
+        ] = await Promise.all([
+            connection.query("SELECT * FROM admin_prehlad_statistika"),
+            connection.query("SELECT * FROM admin_prehlad_posledne_zmluvy"),
+            connection.query("SELECT * FROM admin_prehlad_nezaplatene_zmluvy"),
+            connection.query("SELECT * FROM admin_prehlad_otvorene_poistne_udalosti")
+        ]);
 
-    app.get("/api/admin/prehlad", (req, res) => { });
+        res.json({
+            statistika: statistika[0],
+            posledne_zmluvy: posledne_zmluvy,
+            nezaplatene_zmluvy: nezaplatene_zmluvy,
+            otvorene_poistne_udalosti: otvorene_poistne_udalosti
+        })
+    });
 
     app.get("/api/klient/prehlad", (req, res) => { });
+
+    app.get("/api/zmluvy", (req, res) => { });
 
     app.post("/api/zmluva", (req, res) => { });
 
