@@ -18,8 +18,8 @@ app.use(express.json());
 app.use(session({
     secret: process.env.SECRET,
     resave: false,
-    saveUninitialized: true,
-    cookie: { secure: true }
+    saveUninitialized: false,
+    cookie: { secure: false }
 }));
 
 function auth(req, res, next) {
@@ -129,7 +129,8 @@ async function start() {
     });
 
     app.get("/api/admin/prehlad", auth, async (req, res) => {
-        if (req.session.role !== "a" || req.session.role !== "ka"){
+        const allowedRoles = ['a'];
+        if (!allowedRoles.includes(req.session.role)) {
             return res.status(403).json({ error: "Nedostatocne opravnenia" });
         }
         const [
@@ -152,11 +153,150 @@ async function start() {
         })
     });
 
-    app.get("/api/klient/prehlad", (req, res) => { });
+    app.get("/api/klient/prehlad", auth, async (req, res) => {
+        const allowedRoles = ['k']
+        if (!allowedRoles.includes(req.session.role)) {
+            return res.status(403).json({ error: "Nedostatocne opravnenia" });
+        }
 
-    app.get("/api/zmluvy", (req, res) => { });
+        const [
+            [statistika],
+            [klient_zmluvy],
+            [klient_auta],
+            [poistne_udalosti]
+        ] = await Promise.all([
+            connection.query(`
+                SELECT
+                    COUNT(*) as aktivne_zmluvy,
+                    (SELECT f.datum_splatnosti 
+                    FROM faktura f
+                    JOIN zmluva z ON z.id_zmluva = f.id_zmluva
+                    WHERE z.id_uzivatel = ? 
+                    AND f.datum_zaplatenia IS NULL
+                    ORDER BY f.datum_splatnosti ASC
+                    LIMIT 1) AS najblizsia_splatnost,
 
-    app.post("/api/zmluva", (req, res) => { });
+                    (SELECT f.id_zmluva 
+                    FROM faktura f
+                    JOIN zmluva z ON z.id_zmluva = f.id_zmluva
+                    WHERE z.id_uzivatel = ? 
+                    AND f.datum_zaplatenia IS NULL
+                    ORDER BY f.datum_splatnosti ASC
+                    LIMIT 1) AS najblizsia_splatnost_id_zmluva,
+                    (SELECT COUNT(*) FROM poistna_udalost p
+                    JOIN zmluva z ON z.id_zmluva = p.id_zmluva
+                    WHERE z.id_uzivatel = ? AND p.stav_udalosti = FALSE) AS otvorene_udalosti
+                 FROM zmluva
+                 WHERE id_uzivatel = ? AND stav_zmluvy = 'aktivna'
+            `, [req.session.userId, req.session.userId, req.session.userId, req.session.userId]),
+            connection.query(
+                `SELECT
+                    a.ECV,
+                    a.VIN,
+                    a.cislo_motora,
+                    z.stav_zmluvy,
+                    z.datum_zaciatku,
+                    z.datum_konca,
+                    z.cena_poistneho
+                FROM zmluva z
+                JOIN auto a ON a.id_auto = z.id_auto
+                WHERE z.id_uzivatel = ?
+                ORDER BY z.id_zmluva DESC`,
+                [req.session.userId]
+            ),
+            connection.query(
+                `SELECT
+                    ECV,
+                    VIN,
+                    cislo_motora,
+                    znacka
+                FROM auto a
+                WHERE id_uzivatel = ?
+                ORDER BY id_auto DESC`,
+                [req.session.userId]
+            ),
+            connection.query(
+                `SELECT
+                    a.ECV,
+                    a.VIN,
+                    a.cislo_motora,
+                    p.datum_udalosti,
+                    p.datum_vyriesenia,
+                    p.stav_udalosti,
+                    p.popis_udalosti
+                FROM poistna_udalost p
+                JOIN zmluva z ON z.id_zmluva = p.id_zmluva
+                JOIN auto a ON a.id_auto = z.id_auto
+                WHERE z.id_uzivatel = ?
+                `,
+                [req.session.userId]
+            )
+        ]);
+
+        res.json({
+            statistika: statistika[0],
+            klient_zmluvy: klient_zmluvy,
+            klient_auta: klient_auta,
+            poistne_udalosti: poistne_udalosti
+        })
+
+    });
+
+    app.get("/api/zmluvy", auth, async (req, res) => {
+        if (req.session.role === 'a') {
+            const [
+                [statistika],
+                [admin_zmluvy]
+            ] = await Promise.all([
+                connection.query(
+                    `SELECT
+                    (SELECT COUNT(*) FROM zmluva WHERE stav_zmluvy = 'aktivna') AS aktivne_zmluvy,
+                    (SELECT COUNT(*) FROM zmluva WHERE stav_zmluvy = 'expirovana') AS expirovane_zmluvy,
+                    (SELECT COUNT(*) FROM zmluva WHERE stav_zmluvy = 'zrusena') AS zrusene_zmluvy,
+                    (SELECT COUNT(*) FROM zmluva WHERE stav_zmluvy = 'vytvorena') AS vytvorene_nezaplatene_zmluvy`
+                ),
+                connection.query(
+                    'SELECT * FROM zmluva'
+                )
+            ]);
+
+            res.json({
+                statistika: statistika[0],
+                admin_zmluvy: admin_zmluvy
+            })
+        } else if (req.session.role === 'k') {
+            const [
+                [statistika],
+                [klient_zmluvy]
+            ] = await Promise.all([
+                connection.query(
+                    `SELECT
+                        (SELECT COUNT(*) FROM zmluva WHERE stav_zmluvy = 'aktivna') AS aktivne_zmluvy,
+                        (SELECT COUNT(*) FROM zmluva WHERE stav_zmluvy = 'expirovana') AS expirovane_zmluvy,
+                        (SELECT COUNT(*) FROM zmluva WHERE stav_zmluvy = 'zrusena') AS zrusene_zmluvy,
+                        (SELECT COUNT(*) FROM zmluva WHERE stav_zmluvy = 'vytvorena') AS vytvorene_nezaplatene_zmluvy
+                    WHERE id_uzivatel = ?`,
+                    [req.session.userId]
+                ),
+                connection.query(
+                    `SELECT
+                        a.ECV,
+                        a.VIN,
+                        a.cislo_motora
+                        a.VIN
+                        a.kat_vozidla,
+                        z.datum_zaciatku,
+                        z.datum_konca,
+                        z.cena_poistneho,
+                        z.stav_zmluvy,
+                    FROM zmluva
+                    JOIN auto a ON a.id_auto = z.id_auto`
+                )
+            ]);
+        }
+    });
+
+    app.post("/api/zmluva/:id_zmluva", (req, res) => { });
 
     app.post("/api/zmluva/nova", (req, res) => { });
 
