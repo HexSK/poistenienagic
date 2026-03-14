@@ -18,14 +18,20 @@ CREATE TABLE uzivatel (
     CONSTRAINT uzivatel_pk PRIMARY KEY (id_uzivatel),
     CONSTRAINT uzivatel_rc_uk UNIQUE (rod_cislo),
     CONSTRAINT uzivatel_email_uk UNIQUE (email),
-    CONSTRAINT uzivatel_rc_chk CHECK (rod_cislo REGEXP '[0-9]{6}/[0-9]{4}'),
+    CONSTRAINT uzivatel_rc_chk CHECK (rod_cislo IS NULL OR rod_cislo REGEXP '[0-9]{6}/[0-9]{4}'),
     CONSTRAINT uzivatel_ico_uk UNIQUE (ICO),
-    CONSTRAINT uzivatel_dic_uk UNIQUE (DIC)
+    CONSTRAINT uzivatel_dic_uk UNIQUE (DIC),
+    CONSTRAINT uzivatel_typ_chk CHECK (
+        (typ_uzivatela = 'k' AND rod_cislo IS NOT NULL AND ICO IS NULL) OR
+        (typ_uzivatela = 'kf' AND ICO IS NOT NULL AND rod_cislo IS NULL) OR
+        (typ_uzivatela = 'a')
+    )
 );
 CREATE TABLE vozidlo (
     id_vozidlo INT NOT NULL AUTO_INCREMENT,
     id_uzivatel INT NOT NULL,
     znacka VARCHAR(15) NOT NULL,
+    model VARCHAR(20) NOT NULL,
     kat_vozidla ENUM('A', 'B', 'C', 'D', 'E', 'F', 'G') NOT NULL COMMENT 'A - Osobne auto, B - Motocykel, C - Nakladne auto/tahac, D - Bicykel s pomocnym motorom, E - Bus, F - Prives, G - Ine',
     ECV VARCHAR(7) NULL,
     VIN VARCHAR(17) NULL,
@@ -43,12 +49,14 @@ CREATE TABLE vozidlo (
     )
 );
 
+
 CREATE TABLE zmluva (
     id_zmluva INT NOT NULL AUTO_INCREMENT,
     id_vozidlo INT NOT NULL,
     id_uzivatel INT NOT NULL,
     datum_zaciatku DATE NOT NULL,
     datum_konca DATE NOT NULL,
+    typ_poistenia ENUM('PZP', 'PZP+') NOT NULL DEFAULT 'PZP',
     cena_poistneho DECIMAL(10, 2) NOT NULL,
     stav_zmluvy ENUM('aktivna', 'zrusena', 'expirovana', 'vytvorena') NOT NULL DEFAULT 'vytvorena',
     CONSTRAINT zmluva_pk PRIMARY KEY (id_zmluva),
@@ -57,6 +65,7 @@ CREATE TABLE zmluva (
     CONSTRAINT zmluva_datum_chk CHECK (datum_konca > datum_zaciatku),
     INDEX idx_zmluva_stav_koniec (stav_zmluvy, datum_konca)
 );
+
 
 CREATE TABLE faktura (
     id_faktura INT NOT NULL AUTO_INCREMENT,
@@ -91,4 +100,28 @@ CREATE TABLE poistna_udalost (
     CONSTRAINT poistna_udalost_zmluva_fk FOREIGN KEY (id_zmluva) REFERENCES zmluva (id_zmluva),
     CONSTRAINT poistna_udalost_suma_chk CHECK (suma_udalosti IS NULL OR suma_udalosti >= 0),
     INDEX idx_udalost_stav_datum (stav_udalosti, datum_udalosti)
+);
+
+CREATE TABLE ziadost_o_zmluvu (
+    id_ziadost INT NOT NULL AUTO_INCREMENT,
+    id_uzivatel INT NOT NULL,
+    typ_zmluvy ENUM('PZP', 'PZP+') NOT NULL DEFAULT 'PZP',
+    dlzka_zmluvy_mesiace INT NOT NULL DEFAULT 6,
+    datum_zaciatku_zmluvy DATE NOT NULL,
+    znacka VARCHAR(15) NOT NULL,
+    model VARCHAR(20) NOT NULL,
+    kat_vozidla ENUM('A', 'B', 'C', 'D', 'E', 'F', 'G') NOT NULL COMMENT 'A - Osobne auto, B - Motocykel, C - Nakladne auto/tahac, D - Bicykel s pomocnym motorom, E - Bus, F - Prives, G - Ine',
+    ECV VARCHAR(7) NULL,
+    VIN VARCHAR(17) NULL,
+    cislo_motora VARCHAR(15) NULL,
+    stav_ziadosti ENUM('cakajuca', 'schvalena', 'odmietnuta') NOT NULL DEFAULT 'cakajuca',
+    CONSTRAINT ziadost_pk PRIMARY KEY (id_ziadost),
+    CONSTRAINT ziadost_uzivatel_fk FOREIGN KEY (id_uzivatel) REFERENCES uzivatel (id_uzivatel),
+    CONSTRAINT ziadost_ecv_chk CHECK (ECV REGEXP '[A-Z]{2}[0-9]{3}[A-Z]{2}'),
+    CONSTRAINT ziadost_identifikator_chk CHECK (
+        ECV IS NOT NULL OR 
+        VIN IS NOT NULL OR 
+        cislo_motora IS NOT NULL
+    ),
+    CONSTRAINT ziadost_dlzka_chk CHECK (dlzka_zmluvy_mesiace IN (3, 6, 12, 24))
 );

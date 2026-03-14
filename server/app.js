@@ -26,6 +26,11 @@ function auth(req, res, next) {
     if (!req.session.userId) return res.status(401).json({ error: "Uzivatel neprihlaseny" });
     next();
 }
+
+function adminOnly(req, res, next) {
+    if (req.session.role !== 'a') return res.status(403).json({ error: "Nedostatocne opravnenia" });
+    next();
+}
 async function start() {
     const connection = await mysql.createConnection({
         host: process.env.DB_HOST,
@@ -58,14 +63,14 @@ async function start() {
     });
 
     app.post('/api/register', async (req, res) => {
-        const { id_mesto, meno, priezvisko, datum_narodenia, rod_cislo, email, password } = req.body;
+        const { typ_uzivatela, meno, priezvisko, datum_narodenia, rod_cislo, tel_c, ulica_c, mesto, PSC, email, password, nazov_firma, ICO, DIC } = req.body;
 
         try {
             const hash = await bcrypt.hash(password, 10);
 
             const [result] = await connection.query(
-                `INSERT INTO uzivatel(id_mesto, meno, priezvisko, datum_narodenia, rod_cislo, email, password)
-            VALUES(?, ?, ?, ?, ?, ?, ?)`, [id_mesto, meno, priezvisko, datum_narodenia, rod_cislo, email, hash]
+                `INSERT INTO uzivatel(typ_uzivatela, meno, priezvisko, datum_narodenia, rod_cislo, tel_c, ulica_c, mesto, PSC, email, password, nazov_firma, ICO, DIC)
+            VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [typ_uzivatela, meno, priezvisko, datum_narodenia, rod_cislo, tel_c, ulica_c, mesto, PSC, email, hash, nazov_firma, ICO, DIC]
             );
 
             res.status(201).json({
@@ -128,41 +133,11 @@ async function start() {
         });
     });
 
-    app.get("/api/admin/prehlad", auth, async (req, res) => {
-        const allowedRoles = ['a'];
-        if (!allowedRoles.includes(req.session.role)) {
-            return res.status(403).json({ error: "Nedostatocne opravnenia" });
-        }
-        const [
-            [statistika],
-            [posledne_zmluvy],
-            [nezaplatene_zmluvy],
-            [otvorene_poistne_udalosti]
-        ] = await Promise.all([
-            connection.query("SELECT * FROM admin_prehlad_statistika"),
-            connection.query("SELECT * FROM admin_prehlad_posledne_zmluvy"),
-            connection.query("SELECT * FROM admin_prehlad_nezaplatene_zmluvy"),
-            connection.query("SELECT * FROM admin_prehlad_otvorene_poistne_udalosti")
-        ]);
-
-        res.json({
-            statistika: statistika[0],
-            posledne_zmluvy: posledne_zmluvy,
-            nezaplatene_zmluvy: nezaplatene_zmluvy,
-            otvorene_poistne_udalosti: otvorene_poistne_udalosti
-        })
-    });
-
-    app.get("/api/klient/prehlad", auth, async (req, res) => {
-        const allowedRoles = ['k']
-        if (!allowedRoles.includes(req.session.role)) {
-            return res.status(403).json({ error: "Nedostatocne opravnenia" });
-        }
-
+    app.get("/api/prehlad", auth, async (req, res) => {
         const [
             [statistika],
             [klient_zmluvy],
-            [klient_auta],
+            [klient_vozidla],
             [poistne_udalosti]
         ] = await Promise.all([
             connection.query(`
@@ -191,15 +166,15 @@ async function start() {
             `, [req.session.userId, req.session.userId, req.session.userId, req.session.userId]),
             connection.query(
                 `SELECT
-                    a.ECV,
-                    a.VIN,
-                    a.cislo_motora,
+                    v.ECV,
+                    v.VIN,
+                    v.cislo_motora,
                     z.stav_zmluvy,
                     z.datum_zaciatku,
                     z.datum_konca,
                     z.cena_poistneho
                 FROM zmluva z
-                JOIN auto a ON a.id_auto = z.id_auto
+                JOIN vozidlo v ON v.id_vozidlo = z.id_vozidlo
                 WHERE z.id_uzivatel = ?
                 ORDER BY z.id_zmluva DESC`,
                 [req.session.userId]
@@ -210,23 +185,23 @@ async function start() {
                     VIN,
                     cislo_motora,
                     znacka
-                FROM auto a
+                FROM auto
                 WHERE id_uzivatel = ?
-                ORDER BY id_auto DESC`,
+                ORDER BY id_vozidlo DESC`,
                 [req.session.userId]
             ),
             connection.query(
                 `SELECT
-                    a.ECV,
-                    a.VIN,
-                    a.cislo_motora,
+                    v.ECV,
+                    v.VIN,
+                    v.cislo_motora,
                     p.datum_udalosti,
                     p.datum_vyriesenia,
                     p.stav_udalosti,
                     p.popis_udalosti
                 FROM poistna_udalost p
                 JOIN zmluva z ON z.id_zmluva = p.id_zmluva
-                JOIN auto a ON a.id_auto = z.id_auto
+                JOIN vozidlo v ON v.id_vozidlo = z.id_vozidlo
                 WHERE z.id_uzivatel = ?
                 `,
                 [req.session.userId]
@@ -236,75 +211,149 @@ async function start() {
         res.json({
             statistika: statistika[0],
             klient_zmluvy: klient_zmluvy,
-            klient_auta: klient_auta,
+            klient_vozidla: klient_vozidla,
             poistne_udalosti: poistne_udalosti
         })
 
     });
 
     app.get("/api/zmluvy", auth, async (req, res) => {
-        if (req.session.role === 'a') {
-            const [
-                [statistika],
-                [admin_zmluvy]
-            ] = await Promise.all([
-                connection.query(
-                    `SELECT
+        const [
+            [statistika],
+            [klient_zmluvy]
+        ] = await Promise.all([
+            connection.query(
+                `SELECT
                     (SELECT COUNT(*) FROM zmluva WHERE stav_zmluvy = 'aktivna') AS aktivne_zmluvy,
                     (SELECT COUNT(*) FROM zmluva WHERE stav_zmluvy = 'expirovana') AS expirovane_zmluvy,
                     (SELECT COUNT(*) FROM zmluva WHERE stav_zmluvy = 'zrusena') AS zrusene_zmluvy,
-                    (SELECT COUNT(*) FROM zmluva WHERE stav_zmluvy = 'vytvorena') AS vytvorene_nezaplatene_zmluvy`
-                ),
-                connection.query(
-                    'SELECT * FROM zmluva'
-                )
-            ]);
+                    (SELECT COUNT(*) FROM zmluva WHERE stav_zmluvy = 'vytvorena') AS vytvorene_nezaplatene_zmluvy
+                WHERE id_uzivatel = ?`,
+                [req.session.userId]
+            ),
+            connection.query(
+                `SELECT
+                    v.ECV,
+                    v.VIN,
+                    v.cislo_motora
+                    v.VIN
+                    v.kat_vozidla,
+                    z.datum_zaciatku,
+                    z.datum_konca,
+                    z.cena_poistneho,
+                    z.stav_zmluvy,
+                FROM zmluva
+                JOIN vozidlo v ON v.id_vozidlo = z.id_vozidlo`
+            )
+        ]);
 
-            res.json({
-                statistika: statistika[0],
-                admin_zmluvy: admin_zmluvy
-            })
-        } else if (req.session.role === 'k') {
-            const [
-                [statistika],
-                [klient_zmluvy]
-            ] = await Promise.all([
-                connection.query(
-                    `SELECT
-                        (SELECT COUNT(*) FROM zmluva WHERE stav_zmluvy = 'aktivna') AS aktivne_zmluvy,
-                        (SELECT COUNT(*) FROM zmluva WHERE stav_zmluvy = 'expirovana') AS expirovane_zmluvy,
-                        (SELECT COUNT(*) FROM zmluva WHERE stav_zmluvy = 'zrusena') AS zrusene_zmluvy,
-                        (SELECT COUNT(*) FROM zmluva WHERE stav_zmluvy = 'vytvorena') AS vytvorene_nezaplatene_zmluvy
-                    WHERE id_uzivatel = ?`,
-                    [req.session.userId]
-                ),
-                connection.query(
-                    `SELECT
-                        a.ECV,
-                        a.VIN,
-                        a.cislo_motora
-                        a.VIN
-                        a.kat_vozidla,
-                        z.datum_zaciatku,
-                        z.datum_konca,
-                        z.cena_poistneho,
-                        z.stav_zmluvy,
-                    FROM zmluva
-                    JOIN auto a ON a.id_auto = z.id_auto`
-                )
-            ]);
-        }
+        res.json({
+            statistika: statistika[0],
+            klient_zmluvy: klient_zmluvy
+        })
     });
 
-    app.post("/api/zmluva/:id_zmluva", (req, res) => { });
+    app.post("/api/zmluva/:id_zmluva", auth, async (req, res) => {
+        const [zmluva] = await connection.query(
+            `SELECT
+                z.datum_zaciatku,
+                z.datum_konca, 
+                z.cena_poistneho,
+                z.stav_zmluvy,
+                v.znacka,
+                v.model,
+                v.kat_vozidla,
+                v.ECV,
+                v.VIN,
+                v.cislo_motora,
+                (SELECT 
+                    COUNT(*) 
+                FROM poistna_udalost
+                WHERE pu.id_zmluva = z.id_zmluva) as pocet_udalosti
+            FROM zmluva z 
+            JOIN vozidlo v
+            ON v.id_vozidlo = z.id_vozidlo 
+            JOIN poistna_udalost pu ON pu.id_zmluva = z.id_zmluva
+            WHERE z.id_uzivatel = ? AND z.id_zmluva = ?
+            ORDER BY z.id_zmluva ASC`,
+            [req.session.userId, req.params.id_zmluva]
+        );
+        res.json({
+            zmluvy: zmluva
+        })
+    });
 
-    app.post("/api/zmluva/nova", (req, res) => { });
+    app.post("/api/zmluva/nova-ziadost", auth, async (req, res) => { 
+        const { typ_zmluvy, dlzka_zmluvy_mesiace, datum_zaciatku_zmluvy, znacka, model, kat_vozidla, ECV, VIN, cislo_motora } = req.body;
+
+        const datum_zaciatku = new Date(datum_zaciatku_zmluvy)
+
+        if (datum_zaciatku < new Date()) return res.status(400).json({ error: "Datum nesmie byt v minulosti" });
+        if (dlzka_zmluvy_mesiace >25) return res.status(400).json({ error: "Zmluva moze byt dlha max 24 mesiacov (2 roky)" });
+
+        try {
+            await connection.query(
+                `INSERT INTO
+                ziadost_o_zmluvu (id_uzivatel, typ_zmluvy, dlzka_zmluvy_mesiace, datum_zaciatku_zmluvy, znacka, model, kat_vozidla, ECV, VIN, cislo_motora)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [req.session.userId, typ_zmluvy, dlzka_zmluvy_mesiace, datum_zaciatku, znacka, model, kat_vozidla, ECV, VIN, cislo_motora]
+            );
+            return res.status(201).json({
+                message: "Ziadost odoslana"
+            });
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ error: "Chyba v databaze: " + error})    
+        }
+     });
 
     app.get("/api/faktura", (req, res) => { });
 
     app.post("/api/faktura/platba", (req, res) => { });
 
+     app.get("/api/admin/prehlad", auth, adminOnly, async (req, res) => {
+        const [
+            [statistika],
+            [posledne_zmluvy],
+            [nezaplatene_zmluvy],
+            [otvorene_poistne_udalosti]
+        ] = await Promise.all([
+            connection.query("SELECT * FROM admin_prehlad_statistika"),
+            connection.query("SELECT * FROM admin_prehlad_posledne_zmluvy"),
+            connection.query("SELECT * FROM admin_prehlad_nezaplatene_zmluvy"),
+            connection.query("SELECT * FROM admin_prehlad_otvorene_poistne_udalosti")
+        ]);
 
+        res.json({
+            statistika: statistika[0],
+            posledne_zmluvy: posledne_zmluvy,
+            nezaplatene_zmluvy: nezaplatene_zmluvy,
+            otvorene_poistne_udalosti: otvorene_poistne_udalosti
+        })
+    });
+
+    app.get("/api/admin/zmluvy", auth, adminOnly, async (req, res) => {
+        const [
+            [statistika],
+            [admin_zmluvy]
+        ] = await Promise.all([
+            connection.query(
+                `SELECT
+                    (SELECT COUNT(*) FROM zmluva WHERE stav_zmluvy = 'aktivna') AS aktivne_zmluvy,
+                    (SELECT COUNT(*) FROM zmluva WHERE stav_zmluvy = 'expirovana') AS expirovane_zmluvy,
+                    (SELECT COUNT(*) FROM zmluva WHERE stav_zmluvy = 'zrusena') AS zrusene_zmluvy,
+                    (SELECT COUNT(*) FROM zmluva WHERE stav_zmluvy = 'vytvorena') AS vytvorene_nezaplatene_zmluvy`
+            ),
+            connection.query(
+                'SELECT * FROM zmluva'
+            )
+        ]);
+
+        res.json({
+            statistika: statistika[0],
+            admin_zmluvy: admin_zmluvy
+        });
+    });
 
     app.use("/api", (req, res) => {
         res.status(404).json({ error: "API route not found" });
@@ -317,4 +366,4 @@ async function start() {
 
 start().catch(err => {
     console.error("Server failed to start: ", err)
-})
+});
