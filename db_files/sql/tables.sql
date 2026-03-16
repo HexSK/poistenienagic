@@ -105,7 +105,7 @@ CREATE TABLE poistna_udalost (
 CREATE TABLE ziadost_o_zmluvu (
     id_ziadost INT NOT NULL AUTO_INCREMENT,
     id_uzivatel INT NOT NULL,
-    typ_zmluvy ENUM('PZP', 'PZP+') NOT NULL DEFAULT 'PZP',
+    typ_poistenia ENUM('PZP', 'PZP+') NOT NULL DEFAULT 'PZP',
     dlzka_zmluvy_mesiace INT NOT NULL DEFAULT 6,
     datum_zaciatku_zmluvy DATE NOT NULL,
     znacka VARCHAR(15) NOT NULL,
@@ -115,6 +115,7 @@ CREATE TABLE ziadost_o_zmluvu (
     VIN VARCHAR(17) NULL,
     cislo_motora VARCHAR(15) NULL,
     stav_ziadosti ENUM('cakajuca', 'schvalena', 'odmietnuta') NOT NULL DEFAULT 'cakajuca',
+    sprava VARCHAR(255) NULL;
     CONSTRAINT ziadost_pk PRIMARY KEY (id_ziadost),
     CONSTRAINT ziadost_uzivatel_fk FOREIGN KEY (id_uzivatel) REFERENCES uzivatel (id_uzivatel),
     CONSTRAINT ziadost_ecv_chk CHECK (ECV REGEXP '[A-Z]{2}[0-9]{3}[A-Z]{2}'),

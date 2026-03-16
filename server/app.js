@@ -283,35 +283,129 @@ async function start() {
         })
     });
 
-    app.post("/api/zmluva/nova-ziadost", auth, async (req, res) => { 
-        const { typ_zmluvy, dlzka_zmluvy_mesiace, datum_zaciatku_zmluvy, znacka, model, kat_vozidla, ECV, VIN, cislo_motora } = req.body;
+    app.post("/api/zmluva/nova-ziadost", auth, async (req, res) => {
+        const { typ_poistenia, dlzka_zmluvy_mesiace, datum_zaciatku_zmluvy, znacka, model, kat_vozidla, ECV, VIN, cislo_motora } = req.body;
 
         const datum_zaciatku = new Date(datum_zaciatku_zmluvy)
 
         if (datum_zaciatku < new Date()) return res.status(400).json({ error: "Datum nesmie byt v minulosti" });
-        if (dlzka_zmluvy_mesiace >25) return res.status(400).json({ error: "Zmluva moze byt dlha max 24 mesiacov (2 roky)" });
+        if (dlzka_zmluvy_mesiace > 25) return res.status(400).json({ error: "Zmluva moze byt dlha max 24 mesiacov (2 roky)" });
+        if (!ECV && !VIN && !cislo_motora) return res.status(400).json({ error: "Zadajte aspon ECV, VIN alebo cislo motora" });
 
         try {
             await connection.query(
                 `INSERT INTO
-                ziadost_o_zmluvu (id_uzivatel, typ_zmluvy, dlzka_zmluvy_mesiace, datum_zaciatku_zmluvy, znacka, model, kat_vozidla, ECV, VIN, cislo_motora)
+                ziadost_o_zmluvu (id_uzivatel, typ_poistenia,  dlzka_zmluvy_mesiace, datum_zaciatku_zmluvy, znacka, model, kat_vozidla, ECV, VIN, cislo_motora)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [req.session.userId, typ_zmluvy, dlzka_zmluvy_mesiace, datum_zaciatku, znacka, model, kat_vozidla, ECV, VIN, cislo_motora]
+                [req.session.userId, typ_poistenia, dlzka_zmluvy_mesiace, datum_zaciatku_zmluvy, znacka, model, kat_vozidla, ECV, VIN, cislo_motora]
             );
             return res.status(201).json({
                 message: "Ziadost odoslana"
             });
         } catch (error) {
             console.error(error);
-            res.status(500).json({ error: "Chyba v databaze: " + error})    
+            res.status(500).json({ error: "Chyba v databaze: " + error })
         }
-     });
+    });
 
-    app.get("/api/faktura", (req, res) => { });
+    app.post("/api/admin/zmluva/prijat-ziadost/:id_ziadost", auth, adminOnly, async (req, res) => {
+        const { id_uzivatel, typ_poistenia, dlzka_zmluvy_mesiace, datum_zaciatku_zmluvy, znacka, model, kat_vozidla, ECV, VIN, cislo_motora } = req.body;
 
-    app.post("/api/faktura/platba", (req, res) => { });
+        const zaklad_cena = {
+            'PZP': 8.50,
+            'PZP+': 12.00
+        };
 
-     app.get("/api/admin/prehlad", auth, adminOnly, async (req, res) => {
+        const koeficient_ceny = {
+            'A': 1.0,   // osobné auto
+            'B': 0.7,   // motocykel
+            'C': 1.8,   // nákladné
+            'D': 0.4,   // bicykel s motorom
+            'E': 2.5,   // bus
+            'F': 0.6,   // príves
+            'G': 1.0    // iné
+        };
+
+        const cena = zaklad_cena[typ_zmluvy] * koeficient_ceny[kat_vozidla] * dlzka_zmluvy_mesiace;
+
+        await connection.beginTransaction();
+        try {
+            const [vozidloResult] = await connection.query(
+                `INSERT INTO vozidlo
+                (id_uzivatel, znacka, model, kat_vozidla, ECV, VIN, cislo_motora)
+                VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                [id_uzivatel, znacka, model, kat_vozidla, ECV, VIN, cislo_motora]
+            );
+            const id_vozidlo = vozidloResult.insertId;
+
+            const datum_zaciatku = new Date(datum_zaciatku_zmluvy);
+            const datum_konca = new Date(datum_zaciatku);
+            datum_konca.setMonth(datum_konca.getMonth() + dlzka_zmluvy_mesiace);
+
+            const [zmluvaResult] = await connection.query(
+                `INSERT INTO zmluva
+                (id_vozidlo, id_uzivatel, datum_zaciatku, datum_konca, typ_poistenia, cena_poistneho, stav_zmluvy)
+                VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                [id_vozidlo, id_uzivatel, datum_zaciatku_zmluvy, datum_konca, typ_poistenia, cena, 'vytvorena']
+            );
+
+            const id_zmluva = zmluvaResult.insertId;
+
+            const cislo_faktura = `${new Date().getFullYear()}/${id_zmluva.toString().padStart(4, '0')}`;
+
+            const datum_vystavenia = new Date();
+            const datum_splatnosti = new Date(datum_vystavenia);
+            datum_splatnosti.setDate(datum_splatnosti.getDate() + 14);
+
+            const [fakturaResult] = await connection.query(
+                `INSERT INTO faktura
+                (id_zmluva, cislo_faktura, datum_vystavenia, datum_splatnosti, suma, poznamka)
+                VALUES (?, ?, ?, ?, ?, ?)`,
+                [id_zmluva, cislo_faktura, datum_vystavenia, datum_splatnosti, cena, poznamka]
+            )
+
+            connection.query(
+                `UPDATE ziadost_o_zmluvu
+                SET stav_ziadosti = ?,
+                WHERE id_ziadost = ?`,
+                ['schvalena', req.params.id_ziadost]
+            );
+            await connection.commit()
+
+            return res.status(201).json({
+                message: "Ziadost " + req.params.id_ziadost + " uspesne prijata"
+            });
+        } catch (err) {
+            await connection.rollback();
+            console.error(err);
+            return res.status(500).json({
+                error: "Chyba: " + err
+            });
+        }
+    });
+
+    app.post("/api/admin/zmluva/odmietnut-ziadost/:id_ziadost", auth, adminOnly, async (req, res) => {
+        const { sprava } = req.body;
+        //sprava bude pouzita neskor pri posielani emailu
+        try {
+            connection.query(
+                `UPDATE ziadost_o_zmluvu
+                SET stav_ziadosti = 'odmietnuta'
+                WHERE id_ziadost = ?`,
+                [req.params.id_ziadost]
+            );
+            return res.status(201).json({
+                message: "Ziadost " + req.params.id_ziadost + " uspesne odmietnuta"
+            });
+        } catch (err) {
+            console.error(err);
+            return res.status(500).json({
+                error: "Chyba pri odmietnuti: " + err
+            });
+        }
+    });
+
+    app.get("/api/admin/prehlad", auth, adminOnly, async (req, res) => {
         const [
             [statistika],
             [posledne_zmluvy],
