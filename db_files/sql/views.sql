@@ -51,3 +51,23 @@ FROM
     JOIN vozidlo v ON v.id_vozidlo = z.id_vozidlo
 WHERE
     p.stav_udalosti = FALSE;
+
+CREATE VIEW admin_prehlad_uzivatelia_zmluvy_vozidla AS
+SELECT
+    u.id_uzivatel,
+    v.id_vozidlo,
+    z.id_zmluva,
+    u.meno,
+    u.priezvisko,
+    u.nazov_firma,
+    v.ECV,
+    v.VIN,
+    v.cislo_motora,
+    v.kat_vozidla,
+    z.datum_zaciatku,
+    z.datum_konca,
+    z.cena_poistneho,
+    z.stav_zmluvy
+FROM uzivatel u
+JOIN zmluva z ON z.id_uzivatel = u.id_uzivatel
+JOIN vozidlo v ON v.id_uzivatel = z.id_uzivatel;

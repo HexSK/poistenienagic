@@ -88,6 +88,27 @@ CREATE TABLE faktura (
     INDEX idx_faktura_zmluva_datumy (id_zmluva, datum_splatnosti, datum_zaplatenia)
 );
 
+CREATE TABLE zmluva_stav_historia (
+    id_zmluva_stav_historia INT NOT NULL AUTO_INCREMENT,
+    id_zmluva INT NOT NULL,
+    stav_zmluvy ENUM('aktivna', 'zrusena', 'expirovana', 'vytvorena') NOT NULL,
+    datum_zmeny TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT zmluva_stav_historia_pk PRIMARY KEY (id_zmluva_stav_historia),
+    CONSTRAINT zmluva_stav_historia_zmluva_fk FOREIGN KEY (id_zmluva) REFERENCES zmluva (id_zmluva),
+    INDEX idx_zmluva_stav_historia_zmluva (id_zmluva, datum_zmeny)
+);
+
+CREATE TABLE faktura_stav_historia (
+    id_faktura_stav_historia INT NOT NULL AUTO_INCREMENT,
+    id_faktura INT NOT NULL,
+    stav_faktury ENUM('nezaplatena', 'zaplatena') NOT NULL,
+    datum_zaplatenia DATE NULL,
+    datum_zmeny TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT faktura_stav_historia_pk PRIMARY KEY (id_faktura_stav_historia),
+    CONSTRAINT faktura_stav_historia_faktura_fk FOREIGN KEY (id_faktura) REFERENCES faktura (id_faktura),
+    INDEX idx_faktura_stav_historia_faktura (id_faktura, datum_zmeny)
+);
+
 CREATE TABLE poistna_udalost (
     id_poistna_udalost INT NOT NULL AUTO_INCREMENT,
     id_zmluva INT NOT NULL,
@@ -115,7 +136,7 @@ CREATE TABLE ziadost_o_zmluvu (
     VIN VARCHAR(17) NULL,
     cislo_motora VARCHAR(15) NULL,
     stav_ziadosti ENUM('cakajuca', 'schvalena', 'odmietnuta') NOT NULL DEFAULT 'cakajuca',
-    sprava VARCHAR(255) NULL;
+    poznamka VARCHAR(255) NOT NULL,
     CONSTRAINT ziadost_pk PRIMARY KEY (id_ziadost),
     CONSTRAINT ziadost_uzivatel_fk FOREIGN KEY (id_uzivatel) REFERENCES uzivatel (id_uzivatel),
     CONSTRAINT ziadost_ecv_chk CHECK (ECV REGEXP '[A-Z]{2}[0-9]{3}[A-Z]{2}'),
