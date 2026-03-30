@@ -4,7 +4,6 @@ require("./config/env");
 
 const { applyAppMiddleware } = require("./config/middleware");
 const { createDbConnection } = require("./config/db");
-const { registerClientRoutes } = require("./routes/clientRoutes");
 const { createApiRouter } = require("./routes/apiRoutes");
 
 const PORT = process.env.PORT || 8080;
@@ -15,7 +14,6 @@ async function start() {
 
     const connection = await createDbConnection();
 
-    registerClientRoutes(app);
     app.use("/api", createApiRouter({ connection }));
 
     app.listen(PORT, () => {
