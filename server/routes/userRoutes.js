@@ -219,6 +219,40 @@ function createUserRouter({ connection }) {
         }
     });
 
+    router.patch("/poistna-udalost/:id", async (req, res) => {
+        const { popis_udalosti, datum_udalosti } = req.body;
+
+        try {
+            const [udalost] = await connection.query(
+                `SELECT p.id_poistna_udalost, p.stav_udalosti
+             FROM poistna_udalost p
+             JOIN zmluva z ON z.id_zmluva = p.id_zmluva
+             WHERE p.id_poistna_udalost = ? AND z.id_uzivatel = ?`,
+                [req.params.id, req.session.userId]
+            );
+
+            if (!udalost[0]) {
+                return res.status(404).json({ error: "Udalost nenajdena" });
+            }
+
+            if (udalost[0].stav_udalosti === 1) {
+                return res.status(400).json({ error: "Uz vyriesena, nemozes upravit" });
+            }
+
+            await connection.query(
+                `UPDATE poistna_udalost
+             SET popis_udalosti = ?, datum_udalosti = ?
+             WHERE id_poistna_udalost = ?`,
+                [popis_udalosti, datum_udalosti, req.params.id]
+            );
+
+            res.json({ message: "Udalost upravena" });
+        } catch (err) {
+            console.error(err);
+            res.status(500).json({ error: "Chyba: " + err });
+        }
+    });
+
     router.post("/zmluva/nova-ziadost", async (req, res) => {
         const { typ_poistenia, dlzka_zmluvy_mesiace, datum_zaciatku_zmluvy, znacka, model, kat_vozidla, ECV, VIN, cislo_motora } =
             req.body;

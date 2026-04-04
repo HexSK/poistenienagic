@@ -84,6 +84,28 @@ function createAdminRouter({ connection }) {
         }
     });
 
+    router.get("/ziadost/:id_ziadost", async (req, res) => {
+        try {
+            const [rows] = await connection.query(
+                `SELECT *
+             FROM ziadost_o_zmluvu
+             WHERE id_ziadost = ?`,
+                [req.params.id_ziadost]
+            );
+
+            if (!rows[0]) {
+                return res.status(404).json({ error: "Ziadost neexistuje" });
+            }
+
+            res.json({
+                ziadost: rows[0]
+            });
+        } catch (err) {
+            console.error(err);
+            res.status(500).json({ error: "Chyba: " + err });
+        }
+    });
+
     router.post("/zmluva/prijat-ziadost/:id_ziadost", async (req, res) => {
         const zaklad_cena = {
             PZP: 8.5,
