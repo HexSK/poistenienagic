@@ -1,5 +1,6 @@
 const express = require("express");
 const bcrypt = require("bcrypt");
+import auth from '../middleware/auth.js';
 
 function createAuthRouter({ connection }) {
     const router = express.Router();
@@ -96,6 +97,15 @@ function createAuthRouter({ connection }) {
             userId: req.session.userId,
             role: req.session.role,
         });
+    });
+
+    router.get("/api/me", auth, (req, res) => {
+        if (req.session.includes([userId, role])){
+            return res.status(200).json({
+                userId: req.session.userId,
+                role: req.session.role
+            });
+        }
     });
 
     router.post("/logout", (req, res) => {
