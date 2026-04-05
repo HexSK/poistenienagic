@@ -91,6 +91,11 @@ function createAuthRouter({ connection }) {
 
         req.session.userId = uzivatel.id_uzivatel;
         req.session.role = uzivatel.typ_uzivatela;
+        req.session.meno_priezvisko = {
+            meno: uzivatel.meno,
+            priezvisko: uzivatel.priezvisko,
+            nazov_firma: uzivatel.nazov_firma
+        };
 
         res.json({
             message: "Login uspesny",
@@ -120,4 +125,3 @@ function createAuthRouter({ connection }) {
 module.exports = {
     createAuthRouter,
 };
-

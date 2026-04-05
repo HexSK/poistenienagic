@@ -16,6 +16,23 @@ async function start() {
 
     app.use("/api", createApiRouter({ connection }));
 
+    app.use(cors({
+        origin: function (origin, callback) {
+            const allowedOrigins = [
+                process.env.CLIENT_URL,
+                "http://localhost:5173",
+                "http://localhost:5174"
+            ].filter(Boolean);
+
+            if (!origin || allowedOrigins.includes(origin)) {
+                callback(null, true);
+            } else {
+                callback(new Error('CORS not allowed'));
+            }
+        },
+        credentials: true
+    }));
+
     app.listen(PORT, () => {
         console.log(`Server started on port ${PORT}`);
     });
