@@ -99,7 +99,7 @@ function createAuthRouter({ connection }) {
         });
     });
 
-    router.get("/api/me", auth, (req, res) => {
+    router.get("/me", auth, (req, res) => {
         if (req.session.includes([userId, role])){
             return res.status(200).json({
                 userId: req.session.userId,
