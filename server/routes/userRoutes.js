@@ -37,6 +37,7 @@ function createUserRouter({ connection }) {
             ),
             connection.query(
                 `SELECT
+                    z.id_zmluva,
                     v.ECV,
                     v.VIN,
                     v.cislo_motora,
@@ -63,6 +64,8 @@ function createUserRouter({ connection }) {
             ),
             connection.query(
                 `SELECT
+                    p.id_poistna_udalost,
+                    p.id_zmluva,
                     v.ECV,
                     v.VIN,
                     v.cislo_motora,
@@ -101,6 +104,7 @@ function createUserRouter({ connection }) {
             ),
             connection.query(
                 `SELECT
+                    z.id_zmluva,
                     v.ECV,
                     v.VIN,
                     v.cislo_motora,
@@ -285,4 +289,3 @@ function createUserRouter({ connection }) {
 module.exports = {
     createUserRouter,
 };
-

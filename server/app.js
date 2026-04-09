@@ -10,6 +10,7 @@ const PORT = process.env.PORT || 8080;
 
 async function start() {
     const app = express();
+    app.set("trust proxy", 1);
     applyAppMiddleware(app);
 
     const connection = await createDbConnection();
