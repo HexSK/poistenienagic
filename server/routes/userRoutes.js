@@ -20,6 +20,22 @@ function createUserRouter({ connection }) {
                     ORDER BY f.datum_splatnosti ASC
                     LIMIT 1) AS najblizsia_splatnost,
 
+                    (SELECT f.id_faktura
+                    FROM faktura f
+                    JOIN zmluva z ON z.id_zmluva = f.id_zmluva
+                    WHERE z.id_uzivatel = ? 
+                    AND f.datum_zaplatenia IS NULL
+                    ORDER BY f.datum_splatnosti ASC
+                    LIMIT 1) AS najblizsia_splatnost_id_faktura,
+
+                    (SELECT f.suma
+                    FROM faktura f
+                    JOIN zmluva z ON z.id_zmluva = f.id_zmluva
+                    WHERE z.id_uzivatel = ? 
+                    AND f.datum_zaplatenia IS NULL
+                    ORDER BY f.datum_splatnosti ASC
+                    LIMIT 1) AS najblizsia_splatnost_suma,
+
                     (SELECT f.id_zmluva 
                     FROM faktura f
                     JOIN zmluva z ON z.id_zmluva = f.id_zmluva
@@ -33,7 +49,7 @@ function createUserRouter({ connection }) {
                  FROM zmluva
                  WHERE id_uzivatel = ? AND stav_zmluvy = 'aktivna'
             `,
-                [req.session.userId, req.session.userId, req.session.userId, req.session.userId],
+                [req.session.userId, req.session.userId, req.session.userId, req.session.userId, req.session.userId, req.session.userId],
             ),
             connection.query(
                 `SELECT

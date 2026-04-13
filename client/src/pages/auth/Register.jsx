@@ -1,13 +1,11 @@
-import { Button, Form, Row, Col, Alert } from 'react-bootstrap';
+import { Alert, Button, Col, Form, Row } from 'react-bootstrap';
 import { useState } from 'react';
-import axios from 'axios';
-
-
-const API_ENDPOINT = import.meta.env.VITE_POISTENIENAGIC_API;
+import api from '../../api.js';
+import { useNavigate } from 'react-router-dom';
 
 function Register() {
+    const navigate = useNavigate();
 
-    const [typUzivatela, setTypUzivatela] = useState('k');
     const [meno, setMeno] = useState('');
     const [priezvisko, setPriezvisko] = useState('');
     const [datumNarodenia, setDatumNarodenia] = useState('');
@@ -15,13 +13,13 @@ function Register() {
     const [telCislo, setTelCislo] = useState('');
     const [ulicaC, setUlicaC] = useState('');
     const [mesto, setMesto] = useState('');
-    const [PSC, setPSC] = useState('');
+    const [psc, setPsc] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
-    const [nazovFirma, setNazovFirma] = useState(null);
-    const [ICO, setICO] = useState(null);
-    const [DIC, setDIC] = useState(null);
+    const [nazovFirma, setNazovFirma] = useState('');
+    const [ico, setIco] = useState('');
+    const [dic, setDic] = useState('');
     const [success, setSuccess] = useState(false);
     const [error, setError] = useState(null);
 
@@ -31,7 +29,7 @@ function Register() {
             return;
         }
         setPassword(heslo);
-        setError(null); // Clear error if password is valid
+        setError(null);
     };
 
     const handleConfirmPassword = (confirmHeslo) => {
@@ -45,10 +43,22 @@ function Register() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        setError(null);
 
-
-        if (!meno || !priezvisko || !datumNarodenia || !rodCislo || !telCislo || !ulicaC || !mesto || !PSC || !email || !password || !confirmPassword) {
-            setError('Prosím vyplňte všetky polia!');
+        if (
+            !meno ||
+            !priezvisko ||
+            !datumNarodenia ||
+            !rodCislo ||
+            !telCislo ||
+            !ulicaC ||
+            !mesto ||
+            !psc ||
+            !email ||
+            !password ||
+            !confirmPassword
+        ) {
+            setError('Prosím vyplňte všetky povinné polia!');
             return;
         }
 
@@ -57,46 +67,42 @@ function Register() {
             return;
         }
 
-        if (nazovFirma && !(ICO || DIC)) {
-            setError('Prosím vyplňte všetky polia!');
+        const maFirmu = Boolean(nazovFirma || ico || dic);
+        if (maFirmu && !(nazovFirma && ico && dic)) {
+            setError('Ak vypĺňate firmu, zadajte aj názov firmy, IČO a DIČ.');
             return;
         }
 
-        let userType = 'k';
-        if (nazovFirma && ICO && DIC) {
-            userType = 'kf';
-        }
+        const typUzivatela = maFirmu ? 'kf' : 'k';
 
         try {
-            const response = await axios.post(API_ENDPOINT+'/api/register',
-                {
-                    typ_uzivatela: userType,
-                    meno: meno,
-                    priezvisko: priezvisko,
-                    datum_narodenia: datumNarodenia,
-                    rod_cislo: rodCislo,
-                    tel_c: telCislo,
-                    ulica_c: ulicaC,
-                    mesto: mesto,
-                    PSC: PSC,
-                    email: email,
-                    password: password,
-                    nazo_firma: nazovFirma || null,
-                    ICO: ICO || null,
-                    DIC: DIC || null
-                }
-            );
-            console.log("Registracia uspesna", response.data);
+            await api.post('/api/register', {
+                typ_uzivatela: typUzivatela,
+                meno,
+                priezvisko,
+                datum_narodenia: datumNarodenia,
+                rod_cislo: rodCislo,
+                tel_c: telCislo,
+                ulica_c: ulicaC,
+                mesto,
+                PSC: psc,
+                email,
+                password,
+                nazov_firma: maFirmu ? nazovFirma : null,
+                ICO: maFirmu ? ico : null,
+                DIC: maFirmu ? dic : null,
+            });
+
             setSuccess(true);
-            setError(null);
-        } catch (error){
-            console.error("Chyba pri registracii", error);
-            setError("Pri registracii sa vyskytla chyba.");
-        }        
+        } catch (err) {
+            const serverError = err?.response?.data?.error;
+            setError(serverError || 'Pri registrácii sa vyskytla chyba.');
+        }
     };
 
     return (
         <>
+            <h1>Registrácia</h1>
             <Form onSubmit={handleSubmit}>
                 <Row>
                     <Col md={6}>
@@ -109,7 +115,12 @@ function Register() {
                     <Col md={6}>
                         <Form.Group className="mb-3" controlId="registerPriezvisko">
                             <Form.Label>Priezvisko</Form.Label>
-                            <Form.Control type="text" placeholder="Vložte priezvisko" required onChange={(e) => setPriezvisko(e.target.value)} />
+                            <Form.Control
+                                type="text"
+                                placeholder="Vložte priezvisko"
+                                required
+                                onChange={(e) => setPriezvisko(e.target.value)}
+                            />
                         </Form.Group>
                     </Col>
                 </Row>
@@ -128,7 +139,12 @@ function Register() {
                 <Row>
                     <Form.Group className="mb-3" controlId="registerTelCislo">
                         <Form.Label>Telefónne číslo</Form.Label>
-                        <Form.Control type="text" placeholder="Vložte telefónne číslo" required onChange={(e) => setTelCislo(e.target.value)} />
+                        <Form.Control
+                            type="text"
+                            placeholder="Vložte telefónne číslo"
+                            required
+                            onChange={(e) => setTelCislo(e.target.value)}
+                        />
                     </Form.Group>
                 </Row>
                 <Row>
@@ -148,14 +164,14 @@ function Register() {
                     <Col md={6}>
                         <Form.Group className="mb-3" controlId="registerPsc">
                             <Form.Label>PSČ</Form.Label>
-                            <Form.Control type="text" placeholder="Vložte PSČ" required onChange={(e) => setPSC(e.target.value)} />
+                            <Form.Control type="text" placeholder="Vložte PSČ" required onChange={(e) => setPsc(e.target.value)} />
                         </Form.Group>
                     </Col>
                 </Row>
                 <Row>
                     <Form.Group className="mb-3" controlId="registerEmail">
-                        <Form.Label>E-Mail</Form.Label>
-                        <Form.Control type="email" placeholder="Vložte E-Mail" required onChange={(e) => setEmail(e.target.value)} />
+                        <Form.Label>E-mail</Form.Label>
+                        <Form.Control type="email" placeholder="Vložte e-mail" required onChange={(e) => setEmail(e.target.value)} />
                     </Form.Group>
                 </Row>
                 <Row>
@@ -168,36 +184,60 @@ function Register() {
                     <Col md={6}>
                         <Form.Group className="mb-3" controlId="registerConfirmPassword">
                             <Form.Label>Potvrdiť heslo</Form.Label>
-                            <Form.Control type="password" placeholder="Potvrďte heslo" required onChange={(e) => handleConfirmPassword(e.target.value)} />
+                            <Form.Control
+                                type="password"
+                                placeholder="Potvrďte heslo"
+                                required
+                                onChange={(e) => handleConfirmPassword(e.target.value)}
+                            />
                         </Form.Group>
                     </Col>
                 </Row>
+
+                <hr />
+                <h2 className="h5">Firma (voliteľné)</h2>
                 <Row>
                     <Form.Group className="mb-3" controlId="registerFirm">
                         <Form.Label>Názov firmy</Form.Label>
-                        <Form.Control type="text" placeholder="Vložte názov firmy" onChange={(e) => setNazovFirma(e.target.value)}/>
+                        <Form.Control type="text" placeholder="Vložte názov firmy" onChange={(e) => setNazovFirma(e.target.value)} />
                     </Form.Group>
                 </Row>
                 <Row>
                     <Col md={6}>
                         <Form.Group className="mb-3" controlId="registerIco">
                             <Form.Label>IČO</Form.Label>
-                            <Form.Control type="text" placeholder="Vložte IČO" onChange={(e) => setICO(e.target.value)}/>
+                            <Form.Control type="text" placeholder="Vložte IČO" onChange={(e) => setIco(e.target.value)} />
                         </Form.Group>
                     </Col>
                     <Col md={6}>
-                        <Form.Group className="mb-3" controlId="registerIco">
+                        <Form.Group className="mb-3" controlId="registerDic">
                             <Form.Label>DIČ</Form.Label>
-                            <Form.Control type="text" placeholder="Vložte DIČ" onChange={(e) => setDIC(e.target.value)}/>
+                            <Form.Control type="text" placeholder="Vložte DIČ" onChange={(e) => setDic(e.target.value)} />
                         </Form.Group>
                     </Col>
                 </Row>
-                <Button type="submit" className='w-100'>Registrovať</Button>
+
+                <Button type="submit" className="w-100">
+                    Registrovať
+                </Button>
             </Form>
-            {success && <Alert variant="success">Form submitted successfully!</Alert>}
-            {error && <Alert variant="danger">{error}</Alert>}
+
+            {success && (
+                <Alert className="mt-3" variant="success">
+                    Registrácia prebehla úspešne.{' '}
+                    <Button variant="link" onClick={() => navigate('/login')}>
+                        Prihlásiť sa
+                    </Button>
+                </Alert>
+            )}
+            {error && (
+                <Alert className="mt-3" variant="danger">
+                    {error}
+                </Alert>
+            )}
         </>
     );
 }
 
 export default Register;
+
