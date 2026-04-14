@@ -24,13 +24,18 @@ function createAuthRouter({ connection }) {
         } = req.body;
 
         try {
+            const typ = parseInt(typ_uzivatela);
+
+            if (![0,1,2].includes(typ)) {
+                return res.status(400).json({ error: "zly typ uzivatela" });
+            }
             const hash = await bcrypt.hash(password, 10);
 
             const [result] = await connection.query(
                 `INSERT INTO uzivatel(typ_uzivatela, meno, priezvisko, datum_narodenia, rod_cislo, tel_c, ulica_c, mesto, PSC, email, password, nazov_firma, ICO, DIC)
             VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
-                    typ_uzivatela,
+                    typ,
                     meno,
                     priezvisko,
                     datum_narodenia,
