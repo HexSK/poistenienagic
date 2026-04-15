@@ -18,12 +18,12 @@ CREATE TABLE uzivatel (
     CONSTRAINT uzivatel_pk PRIMARY KEY (id_uzivatel),
     CONSTRAINT uzivatel_rc_uk UNIQUE (rod_cislo),
     CONSTRAINT uzivatel_email_uk UNIQUE (email),
-    CONSTRAINT uzivatel_rc_chk CHECK (rod_cislo IS NULL OR rod_cislo REGEXP '[0-9]{6}/[0-9]{4}'),
+    CONSTRAINT uzivatel_rc_chk CHECK (rod_cislo IS NULL OR rod_cislo REGEXP '^[0-9]{10}$'),
     CONSTRAINT uzivatel_ico_uk UNIQUE (ICO),
     CONSTRAINT uzivatel_dic_uk UNIQUE (DIC),
     CONSTRAINT uzivatel_typ_chk CHECK (
         (typ_uzivatela = 'k' AND rod_cislo IS NOT NULL AND ICO IS NULL) OR
-        (typ_uzivatela = 'kf' AND ICO IS NOT NULL AND rod_cislo IS NULL) OR
+        (typ_uzivatela = 'kf' AND ICO IS NOT NULL) OR
         (typ_uzivatela = 'a')
     )
 );
