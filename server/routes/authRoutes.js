@@ -109,6 +109,7 @@ function createAuthRouter() {
                 message: "Login uspesny",
                 userId: req.session.userId,
                 role: req.session.role,
+                meno_priezvisko: req.session.meno_priezvisko,
             });
         } finally {
             connection.release();

@@ -224,13 +224,20 @@ function createUserRouter() {
                 [req.params.id_faktura, req.session.userId],
             );
             if (!faktura[0]) return res.status(404).json({ error: "Faktura nenajdena" });
-
-            await connection.query(
-                `UPDATE faktura SET datum_zaplatenia = CURDATE(), typ_platby = ?
-            WHERE id_faktura = ?`,
-                [typ_platby, req.params.id_faktura],
-            );
-            return res.json({ message: "Faktura zaplatena" });
+            
+            if (Math.random() < 0.2){ //20 percentna sanca zlyhania platby
+                return res.status(402).json({
+                    error: "Platba neprebehla úspešne"
+                })
+            } else {
+                await connection.query(
+                    `UPDATE faktura SET datum_zaplatenia = CURDATE(), typ_platby = ?
+                    WHERE id_faktura = ?`,
+                    [typ_platby, req.params.id_faktura],
+                );
+                return res.json({ message: "Faktura zaplatena" });
+            };
+            
         } catch (err) {
             console.error(err);
             return res.status(500).json({ error: "Chyba: " + err });
