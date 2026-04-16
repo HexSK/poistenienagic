@@ -27,6 +27,7 @@ function createAuthRouter() {
         const connection = await getDbConnection();
 
         try {
+            const hash = await bcrypt.hash(password, 10);
 
             const [result] = await connection.query(
                 `INSERT INTO uzivatel(typ_uzivatela, meno, priezvisko, datum_narodenia, rod_cislo, tel_c, ulica_c, mesto, PSC, email, password, nazov_firma, ICO, DIC)
