@@ -124,6 +124,7 @@ function createAuthRouter() {
         return res.status(200).json({
             userId: req.session.userId,
             role: req.session.role,
+            meno_priezvisko: req.session.meno_priezvisko
         });
     });
 
