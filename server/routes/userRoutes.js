@@ -1,176 +1,193 @@
 const express = require("express");
 const { auth } = require("../middleware/auth");
+const { getDbConnection } = require("../config/db");
 
-function createUserRouter({ connection }) {
+function createUserRouter() {
     const router = express.Router();
 
     router.use(auth);
 
     router.get("/prehlad", async (req, res) => {
-        const [[statistika], [klient_zmluvy], [klient_vozidla], [poistne_udalosti]] = await Promise.all([
-            connection.query(
-                `
-                SELECT
-                    COUNT(*) as aktivne_zmluvy,
-                    (SELECT f.datum_splatnosti 
-                    FROM faktura f
-                    JOIN zmluva z ON z.id_zmluva = f.id_zmluva
-                    WHERE z.id_uzivatel = ? 
-                    AND f.datum_zaplatenia IS NULL
-                    ORDER BY f.datum_splatnosti ASC
-                    LIMIT 1) AS najblizsia_splatnost,
+        const connection = await getDbConnection();
+        try {
+            const [[statistika], [klient_zmluvy], [klient_vozidla], [poistne_udalosti]] = await Promise.all([
+                connection.query(
+                    `
+                    SELECT
+                        COUNT(*) as aktivne_zmluvy,
+                        (SELECT f.datum_splatnosti 
+                        FROM faktura f
+                        JOIN zmluva z ON z.id_zmluva = f.id_zmluva
+                        WHERE z.id_uzivatel = ? 
+                        AND f.datum_zaplatenia IS NULL
+                        ORDER BY f.datum_splatnosti ASC
+                        LIMIT 1) AS najblizsia_splatnost,
 
-                    (SELECT f.id_faktura
-                    FROM faktura f
-                    JOIN zmluva z ON z.id_zmluva = f.id_zmluva
-                    WHERE z.id_uzivatel = ? 
-                    AND f.datum_zaplatenia IS NULL
-                    ORDER BY f.datum_splatnosti ASC
-                    LIMIT 1) AS najblizsia_splatnost_id_faktura,
+                        (SELECT f.id_faktura
+                        FROM faktura f
+                        JOIN zmluva z ON z.id_zmluva = f.id_zmluva
+                        WHERE z.id_uzivatel = ? 
+                        AND f.datum_zaplatenia IS NULL
+                        ORDER BY f.datum_splatnosti ASC
+                        LIMIT 1) AS najblizsia_splatnost_id_faktura,
 
-                    (SELECT f.suma
-                    FROM faktura f
-                    JOIN zmluva z ON z.id_zmluva = f.id_zmluva
-                    WHERE z.id_uzivatel = ? 
-                    AND f.datum_zaplatenia IS NULL
-                    ORDER BY f.datum_splatnosti ASC
-                    LIMIT 1) AS najblizsia_splatnost_suma,
+                        (SELECT f.suma
+                        FROM faktura f
+                        JOIN zmluva z ON z.id_zmluva = f.id_zmluva
+                        WHERE z.id_uzivatel = ? 
+                        AND f.datum_zaplatenia IS NULL
+                        ORDER BY f.datum_splatnosti ASC
+                        LIMIT 1) AS najblizsia_splatnost_suma,
 
-                    (SELECT f.id_zmluva 
-                    FROM faktura f
-                    JOIN zmluva z ON z.id_zmluva = f.id_zmluva
-                    WHERE z.id_uzivatel = ? 
-                    AND f.datum_zaplatenia IS NULL
-                    ORDER BY f.datum_splatnosti ASC
-                    LIMIT 1) AS najblizsia_splatnost_id_zmluva,
-                    (SELECT COUNT(*) FROM poistna_udalost p
-                    JOIN zmluva z ON z.id_zmluva = p.id_zmluva
-                    WHERE z.id_uzivatel = ? AND p.stav_udalosti = FALSE) AS otvorene_udalosti
-                 FROM zmluva
-                 WHERE id_uzivatel = ? AND stav_zmluvy = 'aktivna'
-            `,
-                [req.session.userId, req.session.userId, req.session.userId, req.session.userId, req.session.userId, req.session.userId],
-            ),
-            connection.query(
-                `SELECT
-                    z.id_zmluva,
-                    v.ECV,
-                    v.VIN,
-                    v.cislo_motora,
-                    z.stav_zmluvy,
-                    z.datum_zaciatku,
-                    z.datum_konca,
-                    z.cena_poistneho
-                FROM zmluva z
-                JOIN vozidlo v ON v.id_vozidlo = z.id_vozidlo
-                WHERE z.id_uzivatel = ?
-                ORDER BY z.id_zmluva DESC`,
-                [req.session.userId],
-            ),
-            connection.query(
-                `SELECT
-                    ECV,
-                    VIN,
-                    cislo_motora,
-                    znacka
-                FROM vozidlo
-                WHERE id_uzivatel = ?
-                ORDER BY id_vozidlo DESC`,
-                [req.session.userId],
-            ),
-            connection.query(
-                `SELECT
-                    p.id_poistna_udalost,
-                    p.id_zmluva,
-                    v.ECV,
-                    v.VIN,
-                    v.cislo_motora,
-                    p.datum_udalosti,
-                    p.datum_vyriesenia,
-                    p.stav_udalosti,
-                    p.popis_udalosti
-                FROM poistna_udalost p
-                JOIN zmluva z ON z.id_zmluva = p.id_zmluva
-                JOIN vozidlo v ON v.id_vozidlo = z.id_vozidlo
-                WHERE z.id_uzivatel = ?
+                        (SELECT f.id_zmluva 
+                        FROM faktura f
+                        JOIN zmluva z ON z.id_zmluva = f.id_zmluva
+                        WHERE z.id_uzivatel = ? 
+                        AND f.datum_zaplatenia IS NULL
+                        ORDER BY f.datum_splatnosti ASC
+                        LIMIT 1) AS najblizsia_splatnost_id_zmluva,
+                        (SELECT COUNT(*) FROM poistna_udalost p
+                        JOIN zmluva z ON z.id_zmluva = p.id_zmluva
+                        WHERE z.id_uzivatel = ? AND p.stav_udalosti = FALSE) AS otvorene_udalosti
+                     FROM zmluva
+                     WHERE id_uzivatel = ? AND stav_zmluvy = 'aktivna'
                 `,
-                [req.session.userId],
-            ),
-        ]);
+                    [req.session.userId, req.session.userId, req.session.userId, req.session.userId, req.session.userId, req.session.userId],
+                ),
+                connection.query(
+                    `SELECT
+                        z.id_zmluva,
+                        v.ECV,
+                        v.VIN,
+                        v.cislo_motora,
+                        z.stav_zmluvy,
+                        z.datum_zaciatku,
+                        z.datum_konca,
+                        z.cena_poistneho
+                    FROM zmluva z
+                    JOIN vozidlo v ON v.id_vozidlo = z.id_vozidlo
+                    WHERE z.id_uzivatel = ?
+                    ORDER BY z.id_zmluva DESC`,
+                    [req.session.userId],
+                ),
+                connection.query(
+                    `SELECT
+                        ECV,
+                        VIN,
+                        cislo_motora,
+                        znacka
+                    FROM vozidlo
+                    WHERE id_uzivatel = ?
+                    ORDER BY id_vozidlo DESC`,
+                    [req.session.userId],
+                ),
+                connection.query(
+                    `SELECT
+                        p.id_poistna_udalost,
+                        p.id_zmluva,
+                        v.ECV,
+                        v.VIN,
+                        v.cislo_motora,
+                        p.datum_udalosti,
+                        p.datum_vyriesenia,
+                        p.stav_udalosti,
+                        p.popis_udalosti
+                    FROM poistna_udalost p
+                    JOIN zmluva z ON z.id_zmluva = p.id_zmluva
+                    JOIN vozidlo v ON v.id_vozidlo = z.id_vozidlo
+                    WHERE z.id_uzivatel = ?
+                    `,
+                    [req.session.userId],
+                ),
+            ]);
 
-        res.json({
-            statistika: statistika[0],
-            klient_zmluvy: klient_zmluvy,
-            klient_vozidla: klient_vozidla,
-            poistne_udalosti: poistne_udalosti,
-        });
+            res.json({
+                statistika: statistika[0],
+                klient_zmluvy: klient_zmluvy,
+                klient_vozidla: klient_vozidla,
+                poistne_udalosti: poistne_udalosti,
+            });
+        } finally {
+            connection.release();
+        }
     });
 
     router.get("/zmluvy", async (req, res) => {
-        const [[statistika], [klient_zmluvy]] = await Promise.all([
-            connection.query(
-                `SELECT
-                    COUNT(CASE WHEN stav_zmluvy = 'aktivna' THEN 1 END) AS aktivne_zmluvy,
-                    COUNT(CASE WHEN stav_zmluvy = 'expirovana' THEN 1 END) AS expirovane_zmluvy,
-                    COUNT(CASE WHEN stav_zmluvy = 'zrusena' THEN 1 END) AS zrusene_zmluvy,
-                    COUNT(CASE WHEN stav_zmluvy = 'vytvorena' THEN 1 END) AS vytvorene_nezaplatene_zmluvy
-                FROM zmluva
-                WHERE id_uzivatel = ?`,
-                [req.session.userId],
-            ),
-            connection.query(
-                `SELECT
-                    z.id_zmluva,
-                    v.ECV,
-                    v.VIN,
-                    v.cislo_motora,
-                    v.kat_vozidla,
-                    z.datum_zaciatku,
-                    z.datum_konca,
-                    z.cena_poistneho,
-                    z.stav_zmluvy
-                FROM zmluva z
-                JOIN vozidlo v ON v.id_vozidlo = z.id_vozidlo
-                WHERE z.id_uzivatel = ?`,
-                [req.session.userId],
-            ),
-        ]);
+        const connection = await getDbConnection();
+        try {
+            const [[statistika], [klient_zmluvy]] = await Promise.all([
+                connection.query(
+                    `SELECT
+                        COUNT(CASE WHEN stav_zmluvy = 'aktivna' THEN 1 END) AS aktivne_zmluvy,
+                        COUNT(CASE WHEN stav_zmluvy = 'expirovana' THEN 1 END) AS expirovane_zmluvy,
+                        COUNT(CASE WHEN stav_zmluvy = 'zrusena' THEN 1 END) AS zrusene_zmluvy,
+                        COUNT(CASE WHEN stav_zmluvy = 'vytvorena' THEN 1 END) AS vytvorene_nezaplatene_zmluvy
+                    FROM zmluva
+                    WHERE id_uzivatel = ?`,
+                    [req.session.userId],
+                ),
+                connection.query(
+                    `SELECT
+                        z.id_zmluva,
+                        v.ECV,
+                        v.VIN,
+                        v.cislo_motora,
+                        v.kat_vozidla,
+                        z.datum_zaciatku,
+                        z.datum_konca,
+                        z.cena_poistneho,
+                        z.stav_zmluvy
+                    FROM zmluva z
+                    JOIN vozidlo v ON v.id_vozidlo = z.id_vozidlo
+                    WHERE z.id_uzivatel = ?`,
+                    [req.session.userId],
+                ),
+            ]);
 
-        res.json({
-            statistika: statistika[0],
-            klient_zmluvy: klient_zmluvy,
-        });
+            res.json({
+                statistika: statistika[0],
+                klient_zmluvy: klient_zmluvy,
+            });
+        } finally {
+            connection.release();
+        }
     });
 
     router.get("/zmluva/:id_zmluva", async (req, res) => {
-        const [zmluva] = await connection.query(
-            `SELECT
-                z.datum_zaciatku,
-                z.datum_konca, 
-                z.cena_poistneho,
-                z.stav_zmluvy,
-                v.znacka,
-                v.model,
-                v.kat_vozidla,
-                v.ECV,
-                v.VIN,
-                v.cislo_motora,
-                (SELECT COUNT(*)
-                FROM poistna_udalost
-                WHERE id_zmluva = z.id_zmluva) as pocet_udalosti
-            FROM zmluva z 
-            JOIN vozidlo v
-            ON v.id_vozidlo = z.id_vozidlo
-            WHERE z.id_uzivatel = ? AND z.id_zmluva = ?
-            ORDER BY z.id_zmluva ASC`,
-            [req.session.userId, req.params.id_zmluva],
-        );
-        res.json({
-            zmluvy: zmluva,
-        });
+        const connection = await getDbConnection();
+        try {
+            const [zmluva] = await connection.query(
+                `SELECT
+                    z.datum_zaciatku,
+                    z.datum_konca, 
+                    z.cena_poistneho,
+                    z.stav_zmluvy,
+                    v.znacka,
+                    v.model,
+                    v.kat_vozidla,
+                    v.ECV,
+                    v.VIN,
+                    v.cislo_motora,
+                    (SELECT COUNT(*)
+                    FROM poistna_udalost
+                    WHERE id_zmluva = z.id_zmluva) as pocet_udalosti
+                FROM zmluva z 
+                JOIN vozidlo v
+                ON v.id_vozidlo = z.id_vozidlo
+                WHERE z.id_uzivatel = ? AND z.id_zmluva = ?
+                ORDER BY z.id_zmluva ASC`,
+                [req.session.userId, req.params.id_zmluva],
+            );
+            res.json({
+                zmluvy: zmluva,
+            });
+        } finally {
+            connection.release();
+        }
     });
 
     router.get("/zmluva/:id_zmluva/faktury", async (req, res) => {
+        const connection = await getDbConnection();
         try {
             const [faktury] = await connection.query(
                 `SELECT
@@ -191,11 +208,14 @@ function createUserRouter({ connection }) {
         } catch (err) {
             console.error(err);
             return res.status(500).json({ error: "Chyba: " + err });
+        } finally {
+            connection.release();
         }
     });
 
     router.post("/faktura/:id_faktura/zaplat", async (req, res) => {
         const { typ_platby } = req.body;
+        const connection = await getDbConnection();
         try {
             const [faktura] = await connection.query(
                 `SELECT f.id_faktura FROM faktura f
@@ -214,11 +234,14 @@ function createUserRouter({ connection }) {
         } catch (err) {
             console.error(err);
             return res.status(500).json({ error: "Chyba: " + err });
+        } finally {
+            connection.release();
         }
     });
 
     router.post("/poistna-udalost", async (req, res) => {
         const { id_zmluva, popis_udalosti, datum_udalosti } = req.body;
+        const connection = await getDbConnection();
         try {
             const [zmluva] = await connection.query(
                 `SELECT id_zmluva FROM zmluva 
@@ -236,11 +259,14 @@ function createUserRouter({ connection }) {
         } catch (err) {
             console.error(err);
             return res.status(500).json({ error: "Chyba: " + err });
+        } finally {
+            connection.release();
         }
     });
 
     router.patch("/poistna-udalost/:id", async (req, res) => {
         const { popis_udalosti, datum_udalosti } = req.body;
+        const connection = await getDbConnection();
 
         try {
             const [udalost] = await connection.query(
@@ -270,6 +296,8 @@ function createUserRouter({ connection }) {
         } catch (err) {
             console.error(err);
             res.status(500).json({ error: "Chyba: " + err });
+        } finally {
+            connection.release();
         }
     });
 
@@ -282,6 +310,8 @@ function createUserRouter({ connection }) {
         if (datum_zaciatku < new Date()) return res.status(400).json({ error: "Datum nesmie byt v minulosti" });
         if (dlzka_zmluvy_mesiace > 25) return res.status(400).json({ error: "Zmluva moze byt dlha max 24 mesiacov (2 roky)" });
         if (!ECV && !VIN && !cislo_motora) return res.status(400).json({ error: "Zadajte aspon ECV, VIN alebo cislo motora" });
+
+        const connection = await getDbConnection();
 
         try {
             await connection.query(
@@ -296,6 +326,8 @@ function createUserRouter({ connection }) {
         } catch (error) {
             console.error(error);
             res.status(500).json({ error: "Chyba v databaze: " + error });
+        } finally {
+            connection.release();
         }
     });
 

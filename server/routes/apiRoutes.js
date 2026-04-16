@@ -3,23 +3,25 @@ const { createAuthRouter } = require("./authRoutes");
 const { createUserRouter } = require("./userRoutes");
 const { createAdminRouter } = require("./adminRoutes");
 
-function createApiRouter({ connection }) {
+function createApiRouter() {
     const router = express.Router();
 
-    router.get("/test1", (req, res) => {
-        connection.query("SELECT * FROM uzivatel AS uzivatel", (err, rows) => {
-            if (err) {
-                return res.status(500).json({ error: err.message });
-            }
-
+    router.get("/test1", async (req, res) => {
+        const connection = await require("../config/db").getDbConnection();
+        try {
+            const [rows] = await connection.query("SELECT * FROM uzivatel AS uzivatel");
             console.table(rows);
             return res.json({ rows });
-        });
+        } catch (err) {
+            return res.status(500).json({ error: err.message });
+        } finally {
+            connection.release();
+        }
     });
 
-    router.use(createAuthRouter({ connection }));
-    router.use(createUserRouter({ connection }));
-    router.use("/admin", createAdminRouter({ connection }));
+    router.use(createAuthRouter());
+    router.use(createUserRouter());
+    router.use("/admin", createAdminRouter());
 
     router.use((req, res) => {
         res.status(404).json({ error: "API route not found" });

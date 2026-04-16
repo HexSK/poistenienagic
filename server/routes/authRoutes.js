@@ -1,8 +1,9 @@
 const express = require("express");
 const bcrypt = require("bcrypt");
 const { auth } = require("../middleware/auth");
+const { getDbConnection } = require("../config/db");
 
-function createAuthRouter({ connection }) {
+function createAuthRouter() {
     const router = express.Router();
 
     router.post("/register", async (req, res) => {
@@ -22,6 +23,8 @@ function createAuthRouter({ connection }) {
             ICO,
             DIC,
         } = req.body;
+
+        const connection = await getDbConnection();
 
         try {
             const typ = parseInt(typ_uzivatela);
@@ -78,35 +81,43 @@ function createAuthRouter({ connection }) {
             res.status(500).json({
                 error: "chyba v databaze",
             });
+        } finally {
+            connection.release();
         }
     });
 
     router.post("/login", async (req, res) => {
         const { email, password } = req.body;
 
-        const [rows] = await connection.query(`SELECT * FROM uzivatel WHERE email = ?`, [email]);
+        const connection = await getDbConnection();
 
-        const uzivatel = rows[0];
+        try {
+            const [rows] = await connection.query(`SELECT * FROM uzivatel WHERE email = ?`, [email]);
 
-        if (!uzivatel) return res.status(401).json({ error: "Neplatne udaje" });
+            const uzivatel = rows[0];
 
-        const valid = await bcrypt.compare(password, uzivatel.password);
+            if (!uzivatel) return res.status(401).json({ error: "Neplatne udaje" });
 
-        if (!valid) return res.status(401).json({ error: "Neplatne udaje" });
+            const valid = await bcrypt.compare(password, uzivatel.password);
 
-        req.session.userId = uzivatel.id_uzivatel;
-        req.session.role = uzivatel.typ_uzivatela;
-        req.session.meno_priezvisko = {
-            meno: uzivatel.meno,
-            priezvisko: uzivatel.priezvisko,
-            nazov_firma: uzivatel.nazov_firma
-        };
+            if (!valid) return res.status(401).json({ error: "Neplatne udaje" });
 
-        res.json({
-            message: "Login uspesny",
-            userId: req.session.userId,
-            role: req.session.role,
-        });
+            req.session.userId = uzivatel.id_uzivatel;
+            req.session.role = uzivatel.typ_uzivatela;
+            req.session.meno_priezvisko = {
+                meno: uzivatel.meno,
+                priezvisko: uzivatel.priezvisko,
+                nazov_firma: uzivatel.nazov_firma
+            };
+
+            res.json({
+                message: "Login uspesny",
+                userId: req.session.userId,
+                role: req.session.role,
+            });
+        } finally {
+            connection.release();
+        }
     });
 
     router.get("/me", auth, (req, res) => {
