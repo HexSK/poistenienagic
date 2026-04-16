@@ -35,7 +35,7 @@ function MojUcet() {
         };
     }, [user]);
 
-    if (loading) {
+    if (loading || !user || !user.meno_priezvisko) {
         return <Spinner animation="border" />;
     }
 
@@ -49,7 +49,9 @@ function MojUcet() {
             <Row className="mb-3">
                 <h1>Môj účet</h1>
                 <Alert variant="info">
-                    Prihlásený používateľ: <strong>{user.userId}</strong> ({user.role})
+                    Prihlásený používateľ: <strong style={{
+                        color: user.role === "a" ? "red" : "white"
+                    }}>{user.meno_priezvisko.nazov_firma === null ? `${user.meno_priezvisko.meno} ${user.meno_priezvisko.priezvisko}` : `${user.meno_priezvisko.meno} ${user.meno_priezvisko.priezvisko} (${user.meno_priezvisko.nazov_firma})`}</strong>
                 </Alert>
             </Row>
 
