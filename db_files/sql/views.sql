@@ -70,4 +70,4 @@ SELECT
     z.stav_zmluvy
 FROM uzivatel u
 JOIN zmluva z ON z.id_uzivatel = u.id_uzivatel
-JOIN vozidlo v ON v.id_uzivatel = z.id_uzivatel;
+JOIN vozidlo v ON v.id_vozidlo = z.id_vozidlo;

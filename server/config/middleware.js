@@ -36,20 +36,27 @@ function applyAppMiddleware(app) {
     );
     app.use(express.json());
 
-    const cookieSecure =
-        process.env.SESSION_COOKIE_SECURE !== undefined
-            ? process.env.SESSION_COOKIE_SECURE === "true"
-            : stripQuotes(process.env.CLIENT_URL || "").startsWith("https://");
+    const rawSecure = process.env.SESSION_COOKIE_SECURE;
+    const rawClientUrl = stripQuotes(process.env.CLIENT_URL || "");
+
+    let secure;
+    if (rawSecure !== undefined) {
+        secure = rawSecure === "true";
+    } else if (rawClientUrl) {
+        secure = rawClientUrl.startsWith("https://");
+    } else {
+        throw new Error("Cannot determine SESSION_COOKIE_SECURE: set it explicitly or provide CLIENT_URL");
+    }
 
     app.use(
         session({
             secret: process.env.SECRET,
             resave: false,
             saveUninitialized: false,
-            proxy: cookieSecure,
+            proxy: secure,
             cookie: {
-                secure: cookieSecure,
-                sameSite: cookieSecure ? "none" : "lax",
+                secure: secure,
+                sameSite: secure ? "none" : "lax",
                 httpOnly: true,
             },
         }),

@@ -10,6 +10,7 @@ DROP TRIGGER IF EXISTS zmluva_bd;
 DROP TRIGGER IF EXISTS faktura_ai_historia;
 DROP TRIGGER IF EXISTS faktura_au_historia;
 DROP TRIGGER IF EXISTS faktura_bd;
+DROP TRIGGER IF EXISTS cena_poistenia_au_faktury;
 DELIMITER $$
 
 CREATE TRIGGER uzivatel_bi_datum_upravy
@@ -190,4 +191,19 @@ BEGIN
     -- zmaz ziadosti
     DELETE FROM ziadost_o_zmluvu WHERE id_uzivatel = OLD.id_uzivatel;
 END$$
+
+CREATE TRIGGER cena_poistenia_au_faktury
+AFTER UPDATE ON cena_poistenia
+FOR EACH ROW
+BEGIN
+    -- nova suma = cena_poistenia * koeficient * pocet mesiacov zmluvy
+    UPDATE faktura f
+    JOIN zmluva z ON z.id_zmluva = f.id_zmluva
+    JOIN vozidlo v ON v.id_vozidlo = z.id_vozidlo
+    SET f.suma = NEW.cena * NEW.koeficient * TIMESTAMPDIFF(MONTH, z.datum_zaciatku, z.datum_konca)
+    WHERE z.typ_poistenia = NEW.typ_poistenia
+      AND v.kat_vozidla = NEW.kat_vozidla
+      AND f.datum_zaplatenia IS NULL;
+END$$
+
 DELIMITER ;

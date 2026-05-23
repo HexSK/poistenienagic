@@ -1,6 +1,6 @@
 CREATE TABLE uzivatel (
     id_uzivatel INT NOT NULL AUTO_INCREMENT,
-    typ_uzivatela TINYINT NOT NULL DEFAULT 1 COMMENT '0 - admin, 1 - klient, 2 - klient/firma',
+    typ_uzivatela ENUM('k', 'kf', 'a') NOT NULL DEFAULT 'k',
     meno VARCHAR(30) NOT NULL,
     priezvisko VARCHAR(60) NOT NULL,
     datum_narodenia DATE NOT NULL,
@@ -22,16 +22,9 @@ CREATE TABLE uzivatel (
     CONSTRAINT uzivatel_ico_uk UNIQUE (ICO),
     CONSTRAINT uzivatel_dic_uk UNIQUE (DIC),
     CONSTRAINT uzivatel_typ_chk CHECK (
-<<<<<<< HEAD
         (typ_uzivatela = 'k' AND rod_cislo IS NOT NULL AND ICO IS NULL) OR
         (typ_uzivatela = 'kf' AND ICO IS NOT NULL) OR
         (typ_uzivatela = 'a')
-=======
-        ((typ_uzivatela = 1 AND rod_cislo IS NOT NULL AND ICO IS NULL) OR
-        (typ_uzivatela = 2 AND ICO IS NOT NULL) OR
-        (typ_uzivatela = 0)) AND
-        typ_uzivatela IN (0, 1, 2)
->>>>>>> 851694c249b86f292c056e579ac47646b9c14a39
     )
 );
 

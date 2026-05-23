@@ -120,21 +120,6 @@ function createAdminRouter() {
     });
 
     router.post("/zmluva/prijat-ziadost/:id_ziadost", async (req, res) => {
-        const zaklad_cena = {
-            PZP: 8.5,
-            "PZP+": 12.0,
-        };
-
-        const koeficient_ceny = {
-            A: 1.0, // osobné auto
-            B: 0.7, // motocykel
-            C: 1.8, // nákladné
-            D: 0.4, // bicykel s motorom
-            E: 2.5, // bus
-            F: 0.6, // príves
-            G: 1.0, // iné
-        };
-
         const connection = await getDbConnection();
 
         try {
@@ -156,7 +141,20 @@ function createAdminRouter() {
                 )
             )[0][0];
 
-            const cena = zaklad_cena[typ_poistenia] * koeficient_ceny[kat_vozidla] * dlzka_zmluvy_mesiace;
+            const [cenyData] = await connection.query(
+                `SELECT cena, koeficient FROM cena_poistenia 
+                WHERE typ_poistenia = ? AND kat_vozidla = ?`,
+                [typ_poistenia, kat_vozidla]
+            );
+
+            if (!cenyData || cenyData.length === 0) {
+                return res.status(400).json({ 
+                    error: `Cena pre typ poistenia ${typ_poistenia} a kategóriu vozidla ${kat_vozidla} neexistuje` 
+                });
+            }
+
+            const { cena: zaklad_cena, koeficient } = cenyData[0];
+            const cena = zaklad_cena * koeficient * dlzka_zmluvy_mesiace;
 
             await connection.beginTransaction();
             try {
